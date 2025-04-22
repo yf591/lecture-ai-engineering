@@ -7,14 +7,151 @@ from llm import generate_response
 from data import create_sample_evaluation_data
 from metrics import get_metrics_descriptions
 
+# モダンなUIのためのカスタムCSS
+def load_css():
+    st.markdown("""
+    <style>
+    /* 全体のスタイル */
+    .main {
+        background-color: #f5f7fa;
+        padding: 1rem;
+    }
+    
+    /* カードスタイル */
+    .card {
+        border-radius: 10px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        background-color: white;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
+    /* チャットメッセージスタイル */
+    .chat-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    
+    .message {
+        padding: 1rem;
+        margin-bottom: 0.8rem;
+        border-radius: 10px;
+        position: relative;
+    }
+    
+    .user-message {
+        background-color: #e3f2fd;
+        border-bottom-right-radius: 2px;
+        margin-left: 1rem;
+    }
+    
+    .bot-message {
+        background-color: #f1f3f4;
+        border-bottom-left-radius: 2px;
+        margin-right: 1rem;
+    }
+    
+    /* ダッシュボードスタイル */
+    .metric-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+    
+    .metric-card {
+        background-color: white;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    .metric-value {
+        font-size: 1.8rem;
+        font-weight: bold;
+        color: #1E88E5;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        color: #555;
+    }
+    
+    /* ボタンスタイル */
+    .stButton > button {
+        border-radius: 6px;
+        font-weight: 500;
+    }
+    
+    /* セパレータースタイル */
+    hr {
+        margin: 1.5rem 0;
+    }
+    
+    /* ヘッダースタイル */
+    h1, h2, h3 {
+        color: #333;
+    }
+    
+    /* フィードバックフォームスタイル */
+    .feedback-form {
+        background-color: white;
+        border-radius: 10px;
+        padding: 1.5rem;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-top: 1rem;
+    }
+    
+    /* タブスタイル */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 2px;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 10px 16px;
+        border-radius: 4px 4px 0 0;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# チャットメッセージの表示
+def display_message(is_user, content):
+    """チャットメッセージを表示する"""
+    message_class = "user-message" if is_user else "bot-message"
+    sender = "You" if is_user else "AI"
+    
+    st.markdown(f"""
+    <div class="message {message_class}">
+        <p><strong>{sender}</strong></p>
+        <p>{content}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # --- チャットページのUI ---
 def display_chat_page(pipe):
-    """チャットページのUIを表示する"""
-    st.subheader("質問を入力してください")
-    user_question = st.text_area("質問", key="question_input", height=100, value=st.session_state.get("current_question", ""))
-    submit_button = st.button("質問を送信")
-
-    # セッション状態の初期化（安全のため）
+    """モダンなチャットページUIを表示する"""
+    load_css()
+    
+    # チャットUIのコンテナ
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    
+    # モダンなヘッダー
+    st.markdown("""
+    <div style="display: flex; align-items: center; margin-bottom: 20px;">
+        <div style="background-color: #4285F4; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin-right: 15px;">
+            <span style="color: white; font-size: 20px;">🤖</span>
+        </div>
+        <h2 style="margin: 0; color: #333;">AIチャットアシスタント</h2>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # チャット履歴の初期化
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
+    
+    # セッション状態の初期化
     if "current_question" not in st.session_state:
         st.session_state.current_question = ""
     if "current_answer" not in st.session_state:
@@ -23,58 +160,164 @@ def display_chat_page(pipe):
         st.session_state.response_time = 0.0
     if "feedback_given" not in st.session_state:
         st.session_state.feedback_given = False
+    
+    # チャット履歴の表示
+    chat_container = st.container()
+    with chat_container:
+        for msg in st.session_state.chat_messages:
+            display_message(msg["is_user"], msg["content"])
+    
+    # 入力欄内にボタンを配置するためのカスタムCSS
+    st.markdown("""
+    <style>
+    .input-container {
+        position: relative;
+        margin-top: 20px;
+    }
+    .input-field {
+        width: 100%;
+        padding: 12px;
+        padding-right: 60px;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        font-size: 16px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .input-field:focus {
+        outline: none;
+        border-color: #4285F4;
+    }
+    .send-button {
+        position: absolute;
+        bottom: 8px;
+        right: 10px;
+        background-color: #4285F4;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .send-button:hover {
+        background-color: #3367D6;
+    }
+    .send-icon {
+        width: 16px;
+        height: 16px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-    # 質問が送信された場合
-    if submit_button and user_question:
-        st.session_state.current_question = user_question
-        st.session_state.current_answer = "" # 回答をリセット
-        st.session_state.feedback_given = False # フィードバック状態もリセット
-
-        with st.spinner("モデルが回答を生成中..."):
-            answer, response_time = generate_response(pipe, user_question)
+    # 常に質問入力フォームを表示する（修正点：フィードバック状態に関わらず表示）
+    with st.form("chat_form", clear_on_submit=True):
+        user_question = st.text_input("質問を入力", placeholder="AIに質問してみましょう...")
+        submit_button = st.form_submit_button("送信")
+        
+        # 質問が送信された場合（フォーム内で処理）
+        if submit_button and user_question:
+            # 新しい質問が入力された場合、前の会話の状態をリセット（修正点：ここを追加）
+            if st.session_state.current_answer and not st.session_state.feedback_given:
+                # フィードバックが未提供の場合でも新しい会話を開始できるようにする
+                st.session_state.current_answer = ""
+                st.session_state.feedback_given = False
+            
+            st.session_state.current_question = user_question
+            
+            # チャット履歴に質問を追加
+            st.session_state.chat_messages.append({
+                "is_user": True,
+                "content": user_question
+            })
+            
+            # UIを更新して質問を表示
+            st.rerun()
+    
+    # 質問が送信済みで、まだ回答が生成されていない場合
+    if st.session_state.current_question and not st.session_state.current_answer:
+        with st.spinner("回答を生成中..."):
+            # 回答の生成
+            answer, response_time = generate_response(pipe, st.session_state.current_question)
             st.session_state.current_answer = answer
             st.session_state.response_time = response_time
-            # ここでrerunすると回答とフィードバックが一度に表示される
+            
+            # チャット履歴に回答を追加
+            st.session_state.chat_messages.append({
+                "is_user": False,
+                "content": f"{answer}<br><small>応答時間: {response_time:.2f}秒</small>"
+            })
+            
+            # フィードバックを取得するためにrerun
             st.rerun()
-
-    # 回答が表示されるべきか判断 (質問があり、回答が生成済みで、まだフィードバックされていない)
-    if st.session_state.current_question and st.session_state.current_answer:
-        st.subheader("回答:")
-        st.markdown(st.session_state.current_answer) # Markdownで表示
-        st.info(f"応答時間: {st.session_state.response_time:.2f}秒")
-
-        # フィードバックフォームを表示 (まだフィードバックされていない場合)
-        if not st.session_state.feedback_given:
-            display_feedback_form()
-        else:
-             # フィードバック送信済みの場合、次の質問を促すか、リセットする
-             if st.button("次の質問へ"):
-                  # 状態をリセット
-                  st.session_state.current_question = ""
-                  st.session_state.current_answer = ""
-                  st.session_state.response_time = 0.0
-                  st.session_state.feedback_given = False
-                  st.rerun() # 画面をクリア
-
+    
+    # 回答生成後、まだフィードバックが提供されていない場合
+    if st.session_state.current_answer and not st.session_state.feedback_given:
+        st.markdown('<div class="feedback-form">', unsafe_allow_html=True)
+        st.info("👇 フィードバックを提供するか、上の入力欄から次の質問を入力できます")
+        display_feedback_form()
+        st.markdown('</div>', unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def display_feedback_form():
     """フィードバック入力フォームを表示する"""
+    st.subheader("フィードバック")
+    st.write("この回答はどうでしたか？")
+    
     with st.form("feedback_form"):
-        st.subheader("フィードバック")
-        feedback_options = ["正確", "部分的に正確", "不正確"]
-        # label_visibility='collapsed' でラベルを隠す
-        feedback = st.radio("回答の評価", feedback_options, key="feedback_radio", label_visibility='collapsed', horizontal=True)
-        correct_answer = st.text_area("より正確な回答（任意）", key="correct_answer_input", height=100)
-        feedback_comment = st.text_area("コメント（任意）", key="feedback_comment_input", height=100)
-        submitted = st.form_submit_button("フィードバックを送信")
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            accurate = st.checkbox("正確", key="feedback_accurate")
+        with col2:
+            partially = st.checkbox("部分的に正確", key="feedback_partially")
+        with col3:
+            inaccurate = st.checkbox("不正確", key="feedback_inaccurate")
+        
+        correct_answer = st.text_area(
+            "より正確な回答（任意）", 
+            height=100,
+            placeholder="より良い回答があれば、こちらに記入してください"
+        )
+        
+        feedback_comment = st.text_area(
+            "コメント（任意）", 
+            height=100,
+            placeholder="AIの改善点や良かった点など、自由にコメントしてください"
+        )
+        
+        submitted = st.form_submit_button("送信")
+        
         if submitted:
-            # フィードバックをデータベースに保存
-            is_correct = 1.0 if feedback == "正確" else (0.5 if feedback == "部分的に正確" else 0.0)
-            # コメントがない場合でも '正確' などの評価はfeedbackに含まれるようにする
+            # フィードバック値の決定
+            if inaccurate:
+                feedback = "不正確"
+                is_correct = 0.0
+            elif partially:
+                feedback = "部分的に正確"
+                is_correct = 0.5
+            elif accurate:
+                feedback = "正確"
+                is_correct = 1.0
+            else:
+                feedback = "未評価"
+                is_correct = None
+                
+            # フィードバックが未評価の場合はエラーメッセージを表示
+            if is_correct is None:
+                st.error("評価を選択してください（正確/部分的に正確/不正確）")
+                return
+                
+            # コメントがある場合のみ結合
             combined_feedback = f"{feedback}"
             if feedback_comment:
                 combined_feedback += f": {feedback_comment}"
-
+            
+            # データベースに保存
             save_to_db(
                 st.session_state.current_question,
                 st.session_state.current_answer,
@@ -83,209 +326,290 @@ def display_feedback_form():
                 is_correct,
                 st.session_state.response_time
             )
+            
             st.session_state.feedback_given = True
-            st.success("フィードバックが保存されました！")
-            # フォーム送信後に状態をリセットしない方が、ユーザーは結果を確認しやすいかも
-            # 必要ならここでリセットして st.rerun()
-            st.rerun() # フィードバックフォームを消すために再実行
+            st.success("フィードバックが送信されました！ありがとうございます。")
+            
+            # 次の質問ボタンを表示するため再読み込み
+            st.rerun()
+            
+    # フィードバック送信済みの場合、次の質問ボタン
+    if st.session_state.feedback_given:
+        if st.button("次の質問へ", use_container_width=True):
+            # 次の質問のために状態をリセット
+            st.session_state.current_question = ""
+            st.session_state.current_answer = ""
+            st.session_state.response_time = 0.0
+            st.session_state.feedback_given = False
+            st.rerun()
 
 # --- 履歴閲覧ページのUI ---
 def display_history_page():
-    """履歴閲覧ページのUIを表示する"""
-    st.subheader("チャット履歴と評価指標")
+    """改良された履歴閲覧ページのUIを表示する"""
+    load_css()
+    
+    st.header("チャット履歴と評価分析")
+    
     history_df = get_chat_history()
-
+    
     if history_df.empty:
         st.info("まだチャット履歴がありません。")
         return
-
+    
     # タブでセクションを分ける
-    tab1, tab2 = st.tabs(["履歴閲覧", "評価指標分析"])
-
+    tab1, tab2 = st.tabs(["📊 ダッシュボード", "💬 履歴閲覧"])
+    
     with tab1:
+        display_dashboard(history_df)
+    
+    with tab2:
         display_history_list(history_df)
 
-    with tab2:
-        display_metrics_analysis(history_df)
+def display_dashboard(history_df):
+    """シンプルなダッシュボード表示"""
+    st.subheader("AI パフォーマンスダッシュボード")
+    
+    # クリーンなデータセット（NaN値を処理）
+    clean_df = history_df.copy()
+    
+    # カラムの存在確認と追加
+    required_columns = {
+        'is_correct': 0, 
+        'response_time': 0, 
+        'bleu_score': 0,
+        'similarity_score': 0,
+        'readability_score': 0,
+        'sentiment_score': 0.5,
+        'diversity_score': 0,
+        'conciseness_score': 0,
+        'quality_score': 0
+    }
+    
+    # 存在しないカラムを追加
+    for col, default_val in required_columns.items():
+        if col not in clean_df.columns:
+            clean_df[col] = default_val
+    
+    # NaN値を適切なデフォルト値で埋める
+    clean_df = clean_df.fillna(required_columns)
+    
+    # 主要指標をカード表示
+    st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        avg_quality = clean_df['quality_score'].mean()
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{avg_quality:.1f}</div>
+            <div class="metric-label">平均品質スコア</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col2:
+        avg_response_time = clean_df['response_time'].mean()
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{avg_response_time:.2f}秒</div>
+            <div class="metric-label">平均応答時間</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col3:
+        accuracy_rate = (clean_df['is_correct'] >= 0.5).mean() * 100
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{accuracy_rate:.1f}%</div>
+            <div class="metric-label">正確度</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col4:
+        total_qa = len(clean_df)
+        st.markdown(f"""
+        <div class="metric-card">
+            <div class="metric-value">{total_qa}</div>
+            <div class="metric-label">総質問数</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 正確性の分布
+    st.subheader("回答精度の分布")
+    accuracy_counts = clean_df['is_correct'].map({1.0: '正確', 0.5: '部分的に正確', 0.0: '不正確'}).value_counts()
+    st.bar_chart(accuracy_counts)
+    
+    # 評価指標の分布
+    st.subheader("評価指標の分析")
+    
+    metrics_to_plot = ['bleu_score', 'similarity_score', 'relevance_score', 
+                       'sentiment_score', 'readability_score', 'diversity_score', 
+                       'conciseness_score']
+    
+    # 利用可能な指標を選択肢に含める
+    valid_metrics = [m for m in metrics_to_plot if m in clean_df.columns and clean_df[m].notna().any()]
+    
+    if valid_metrics:
+        metric_option = st.selectbox(
+            "表示する評価指標を選択",
+            valid_metrics,
+            format_func=lambda x: {
+                'bleu_score': 'BLEU',
+                'similarity_score': '類似度',
+                'relevance_score': '関連性',
+                'sentiment_score': '感情分析',
+                'readability_score': '読みやすさ',
+                'diversity_score': '語彙の多様性',
+                'conciseness_score': '簡潔性'
+            }.get(x, x)
+        )
+        
+        st.bar_chart(clean_df[metric_option])
+    else:
+        st.info("表示可能な評価指標データがありません。")
 
 def display_history_list(history_df):
-    """履歴リストを表示する"""
-    st.write("#### 履歴リスト")
-    # 表示オプション
+    """改良された履歴リストを表示する"""
+    st.subheader("チャット履歴")
+    
+    # フィルター
     filter_options = {
         "すべて表示": None,
         "正確なもののみ": 1.0,
         "部分的に正確なもののみ": 0.5,
         "不正確なもののみ": 0.0
     }
-    display_option = st.radio(
-        "表示フィルタ",
-        options=filter_options.keys(),
-        horizontal=True,
-        label_visibility="collapsed" # ラベル非表示
+    
+    display_option = st.selectbox(
+        "フィルター:",
+        options=list(filter_options.keys()),
     )
-
+    
+    # フィルタリングとソート
     filter_value = filter_options[display_option]
     if filter_value is not None:
-        # is_correctがNaNの場合を考慮
         filtered_df = history_df[history_df["is_correct"].notna() & (history_df["is_correct"] == filter_value)]
     else:
         filtered_df = history_df
-
+    
     if filtered_df.empty:
         st.info("選択した条件に一致する履歴はありません。")
         return
-
+    
     # ページネーション
     items_per_page = 5
     total_items = len(filtered_df)
     total_pages = (total_items + items_per_page - 1) // items_per_page
-    current_page = st.number_input('ページ', min_value=1, max_value=total_pages, value=1, step=1)
-
+    
+    current_page = st.slider("ページ", min_value=1, max_value=max(1, total_pages), value=1)
+    
     start_idx = (current_page - 1) * items_per_page
-    end_idx = start_idx + items_per_page
-    paginated_df = filtered_df.iloc[start_idx:end_idx]
-
-
-    for i, row in paginated_df.iterrows():
-        with st.expander(f"{row['timestamp']} - Q: {row['question'][:50] if row['question'] else 'N/A'}..."):
-            st.markdown(f"**Q:** {row['question']}")
-            st.markdown(f"**A:** {row['answer']}")
-            st.markdown(f"**Feedback:** {row['feedback']}")
-            if row['correct_answer']:
-                st.markdown(f"**Correct A:** {row['correct_answer']}")
-
-            # 評価指標の表示
-            st.markdown("---")
-            cols = st.columns(3)
-            cols[0].metric("正確性スコア", f"{row['is_correct']:.1f}")
-            cols[1].metric("応答時間(秒)", f"{row['response_time']:.2f}")
-            cols[2].metric("単語数", f"{row['word_count']}")
-
-            cols = st.columns(3)
-            # NaNの場合はハイフン表示
-            cols[0].metric("BLEU", f"{row['bleu_score']:.4f}" if pd.notna(row['bleu_score']) else "-")
-            cols[1].metric("類似度", f"{row['similarity_score']:.4f}" if pd.notna(row['similarity_score']) else "-")
-            cols[2].metric("関連性", f"{row['relevance_score']:.4f}" if pd.notna(row['relevance_score']) else "-")
-
-    st.caption(f"{total_items} 件中 {start_idx+1} - {min(end_idx, total_items)} 件を表示")
-
-
-def display_metrics_analysis(history_df):
-    """評価指標の分析結果を表示する"""
-    st.write("#### 評価指標の分析")
-
-    # is_correct が NaN のレコードを除外して分析
-    analysis_df = history_df.dropna(subset=['is_correct'])
-    if analysis_df.empty:
-        st.warning("分析可能な評価データがありません。")
-        return
-
-    accuracy_labels = {1.0: '正確', 0.5: '部分的に正確', 0.0: '不正確'}
-    analysis_df['正確性'] = analysis_df['is_correct'].map(accuracy_labels)
-
-    # 正確性の分布
-    st.write("##### 正確性の分布")
-    accuracy_counts = analysis_df['正確性'].value_counts()
-    if not accuracy_counts.empty:
-        st.bar_chart(accuracy_counts)
-    else:
-        st.info("正確性データがありません。")
-
-    # 応答時間と他の指標の関係
-    st.write("##### 応答時間とその他の指標の関係")
-    metric_options = ["bleu_score", "similarity_score", "relevance_score", "word_count"]
-    # 利用可能な指標のみ選択肢に含める
-    valid_metric_options = [m for m in metric_options if m in analysis_df.columns and analysis_df[m].notna().any()]
-
-    if valid_metric_options:
-        metric_option = st.selectbox(
-            "比較する評価指標を選択",
-            valid_metric_options,
-            key="metric_select"
-        )
-
-        chart_data = analysis_df[['response_time', metric_option, '正確性']].dropna() # NaNを除外
-        if not chart_data.empty:
-             st.scatter_chart(
-                chart_data,
-                x='response_time',
-                y=metric_option,
-                color='正確性',
-            )
+    end_idx = min(start_idx + items_per_page, total_items)
+    
+    st.markdown(f"**{total_items}件中 {start_idx+1}-{end_idx}件を表示**")
+    
+    # 履歴リスト表示
+    for i, row in filtered_df.iloc[start_idx:end_idx].iterrows():
+        # 正確性によって色を変更
+        if row['is_correct'] == 1.0:
+            header_color = "#4CAF50"  # 緑
+            accuracy_label = "正確"
+        elif row['is_correct'] == 0.5:
+            header_color = "#FFC107"  # 黄
+            accuracy_label = "部分的に正確"
         else:
-            st.info(f"選択された指標 ({metric_option}) と応答時間の有効なデータがありません。")
-
-    else:
-        st.info("応答時間と比較できる指標データがありません。")
-
-
-    # 全体の評価指標の統計
-    st.write("##### 評価指標の統計")
-    stats_cols = ['response_time', 'bleu_score', 'similarity_score', 'word_count', 'relevance_score']
-    valid_stats_cols = [c for c in stats_cols if c in analysis_df.columns and analysis_df[c].notna().any()]
-    if valid_stats_cols:
-        metrics_stats = analysis_df[valid_stats_cols].describe()
-        st.dataframe(metrics_stats)
-    else:
-        st.info("統計情報を計算できる評価指標データがありません。")
-
-    # 正確性レベル別の平均スコア
-    st.write("##### 正確性レベル別の平均スコア")
-    if valid_stats_cols and '正確性' in analysis_df.columns:
-        try:
-            accuracy_groups = analysis_df.groupby('正確性')[valid_stats_cols].mean()
-            st.dataframe(accuracy_groups)
-        except Exception as e:
-            st.warning(f"正確性別スコアの集計中にエラーが発生しました: {e}")
-    else:
-         st.info("正確性レベル別の平均スコアを計算できるデータがありません。")
-
-
-    # カスタム評価指標：効率性スコア
-    st.write("##### 効率性スコア (正確性 / (応答時間 + 0.1))")
-    if 'response_time' in analysis_df.columns and analysis_df['response_time'].notna().any():
-        # ゼロ除算を避けるために0.1を追加
-        analysis_df['efficiency_score'] = analysis_df['is_correct'] / (analysis_df['response_time'].fillna(0) + 0.1)
-        # IDカラムが存在するか確認
-        if 'id' in analysis_df.columns:
-            # 上位10件を表示
-            top_efficiency = analysis_df.sort_values('efficiency_score', ascending=False).head(10)
-            # id をインデックスにする前に存在確認
-            if not top_efficiency.empty:
-                st.bar_chart(top_efficiency.set_index('id')['efficiency_score'])
-            else:
-                st.info("効率性スコアデータがありません。")
-        else:
-            # IDがない場合は単純にスコアを表示
-             st.bar_chart(analysis_df.sort_values('efficiency_score', ascending=False).head(10)['efficiency_score'])
-
-    else:
-        st.info("効率性スコアを計算するための応答時間データがありません。")
-
+            header_color = "#F44336"  # 赤
+            accuracy_label = "不正確"
+        
+        # カード内表示用の短い質問テキスト
+        short_question = row['question'][:100] + "..." if len(row['question']) > 100 else row['question']
+        
+        st.markdown(f"""
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                <span style="color: #666;">{row['timestamp']}</span>
+                <span style="background-color: {header_color}; color: white; padding: 2px 8px; border-radius: 10px;">{accuracy_label}</span>
+            </div>
+            <p style="font-weight: 500;">{short_question}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        with st.expander("詳細を表示"):
+            col1, col2 = st.columns([3, 1])
+            
+            with col1:
+                st.markdown("**質問:**")
+                st.write(row['question'])
+                
+                st.markdown("**回答:**")
+                st.write(row['answer'])
+                
+                if pd.notna(row['correct_answer']) and row['correct_answer']:
+                    st.markdown("**正しい回答:**")
+                    st.write(row['correct_answer'])
+                
+                if pd.notna(row['feedback']) and row['feedback']:
+                    st.info(f"**フィードバック:** {row['feedback']}")
+            
+            with col2:
+                st.markdown("**評価指標:**")
+                st.markdown(f"**品質スコア:** {row.get('quality_score', 0):.1f}/100")
+                st.markdown(f"**応答時間:** {row.get('response_time', 0):.2f}秒")
+                st.markdown(f"**単語数:** {row.get('word_count', 0)}")
+                st.markdown(f"**BLEU:** {row.get('bleu_score', 0):.2f}")
+                st.markdown(f"**類似度:** {row.get('similarity_score', 0):.2f}")
 
 # --- サンプルデータ管理ページのUI ---
 def display_data_page():
-    """サンプルデータ管理ページのUIを表示する"""
-    st.subheader("サンプル評価データの管理")
+    """改良されたサンプルデータ管理ページのUIを表示する"""
+    load_css()
+    
+    st.header("サンプルデータ & 評価指標管理")
+    
+    # データ管理セクション
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    
+    st.subheader("データ管理")
+    
     count = get_db_count()
-    st.write(f"現在のデータベースには {count} 件のレコードがあります。")
-
+    
+    # プログレスバーでデータ量を視覚化（最大50件と仮定）
+    progress_value = min(count / 50, 1.0)
+    
+    st.progress(progress_value)
+    st.markdown(f"現在のデータベースには **{count}件** のレコードがあります。")
+    
     col1, col2 = st.columns(2)
+    
     with col1:
-        if st.button("サンプルデータを追加", key="create_samples"):
+        if st.button("サンプルデータを追加", use_container_width=True):
             create_sample_evaluation_data()
-            st.rerun() # 件数表示を更新
-
+            st.rerun()
+    
     with col2:
-        # 確認ステップ付きのクリアボタン
-        if st.button("データベースをクリア", key="clear_db_button"):
-            if clear_db(): # clear_db内で確認と実行を行う
-                st.rerun() # クリア後に件数表示を更新
-
-    # 評価指標に関する解説
-    st.subheader("評価指標の説明")
+        if st.button("データベースをクリア", use_container_width=True):
+            if clear_db():
+                st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # 評価指標の解説
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    
+    st.subheader("評価指標の解説")
+    
     metrics_info = get_metrics_descriptions()
-    for metric, description in metrics_info.items():
-        with st.expander(f"{metric}"):
-            st.write(description)
+    
+    # カードUIで評価指標を表示
+    metrics_cols = st.columns(2)
+    
+    for i, (metric, description) in enumerate(metrics_info.items()):
+        col_idx = i % 2
+        
+        with metrics_cols[col_idx]:
+            with st.expander(f"{metric}"):
+                st.write(description)
+    
+    st.markdown('</div>', unsafe_allow_html=True)

@@ -21,7 +21,12 @@ CREATE TABLE IF NOT EXISTS {TABLE_NAME}
  bleu_score REAL,
  similarity_score REAL,
  word_count INTEGER,
- relevance_score REAL)
+ relevance_score REAL,
+ sentiment_score REAL,    -- 追加: 感情分析スコア
+ readability_score REAL,  -- 追加: 読みやすさ
+ diversity_score REAL,    -- 追加: 語彙の多様性
+ conciseness_score REAL,  -- 追加: 簡潔性
+ quality_score REAL)      -- 追加: 総合品質スコア
 '''
 
 # --- データベース初期化 ---
@@ -34,6 +39,9 @@ def init_db():
         conn.commit()
         conn.close()
         print(f"Database '{DB_FILE}' initialized successfully.")
+        
+        # 既存のデータベースファイルの場合、マイグレーションを実行
+        migrate_db_schema()
     except Exception as e:
         st.error(f"データベースの初期化に失敗しました: {e}")
         raise e # エラーを再発生させてアプリの起動を止めるか、適切に処理する
@@ -48,16 +56,32 @@ def save_to_db(question, answer, feedback, correct_answer, is_correct, response_
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # 追加の評価指標を計算
-        bleu_score, similarity_score, word_count, relevance_score = calculate_metrics(
+        bleu_score, similarity_score, word_count, relevance_score, sentiment_score, readability_score, diversity_score, conciseness_score = calculate_metrics(
             answer, correct_answer
         )
+        
+        # 総合品質スコアを計算
+        from metrics import calculate_overall_quality_score
+        metrics_dict = {
+            'is_correct': is_correct,
+            'bleu_score': bleu_score,
+            'similarity_score': similarity_score,
+            'relevance_score': relevance_score,
+            'sentiment_score': sentiment_score,
+            'readability_score': readability_score,
+            'diversity_score': diversity_score,
+            'conciseness_score': conciseness_score
+        }
+        quality_score = calculate_overall_quality_score(metrics_dict)
 
         c.execute(f'''
         INSERT INTO {TABLE_NAME} (timestamp, question, answer, feedback, correct_answer, is_correct,
-                                 response_time, bleu_score, similarity_score, word_count, relevance_score)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                 response_time, bleu_score, similarity_score, word_count, relevance_score,
+                                 sentiment_score, readability_score, diversity_score, conciseness_score, quality_score)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (timestamp, question, answer, feedback, correct_answer, is_correct,
-             response_time, bleu_score, similarity_score, word_count, relevance_score))
+             response_time, bleu_score, similarity_score, word_count, relevance_score,
+             sentiment_score, readability_score, diversity_score, conciseness_score, quality_score))
         conn.commit()
         print("Data saved to DB successfully.") # デバッグ用
     except sqlite3.Error as e:
@@ -122,6 +146,42 @@ def clear_db():
         st.error(f"データベースのクリア中にエラーが発生しました: {e}")
         st.session_state.confirm_clear = False # エラー時もリセット
         return False # 削除失敗
+    finally:
+        if conn:
+            conn.close()
+
+def migrate_db_schema():
+    """既存のデータベースに新しいカラムを追加するマイグレーション関数"""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        
+        # 既存のカラムをチェックするためにテーブル情報を取得
+        c.execute(f"PRAGMA table_info({TABLE_NAME})")
+        existing_columns = [column[1] for column in c.fetchall()]
+        
+        # 追加が必要なカラムとそのデータ型
+        new_columns = {
+            'sentiment_score': 'REAL',
+            'readability_score': 'REAL',
+            'diversity_score': 'REAL',
+            'conciseness_score': 'REAL',
+            'quality_score': 'REAL'
+        }
+        
+        # 存在しないカラムのみ追加
+        for column_name, data_type in new_columns.items():
+            if column_name not in existing_columns:
+                try:
+                    c.execute(f"ALTER TABLE {TABLE_NAME} ADD COLUMN {column_name} {data_type}")
+                    print(f"カラム '{column_name}' を追加しました")
+                except sqlite3.Error as e:
+                    print(f"カラム '{column_name}' の追加中にエラー: {e}")
+        
+        conn.commit()
+        print("データベースマイグレーションが完了しました")
+    except sqlite3.Error as e:
+        st.error(f"データベースマイグレーション中にエラーが発生しました: {e}")
     finally:
         if conn:
             conn.close()
