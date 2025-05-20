@@ -133,21 +133,21 @@ def test_model_classification_metrics(train_model):
     f1 = f1_score(y_test, y_pred)
     precision = precision_score(y_test, y_pred)
     recall = recall_score(y_test, y_pred)
-    
+
     # 結果を表示（デバッグ用）
     print(f"F1スコア: {f1:.4f}")
     print(f"適合率: {precision:.4f}")
     print(f"再現率: {recall:.4f}")
-    
+
     # Titanicデータセットでの一般的な基準値
     assert f1 >= 0.7, f"モデルのF1スコアが低すぎます: {f1}"
     assert precision >= 0.7, f"モデルの適合率が低すぎます: {precision}"
     assert recall >= 0.6, f"モデルの再現率が低すぎます: {recall}"
-    
+
     # 混同行列の分析（オプション）
     cm = confusion_matrix(y_test, y_pred)
     print(f"混同行列:\n{cm}")
-    
+
     # 偽陰性の割合を確認
     false_negatives = cm[1, 0]  # 実際は1だが0と予測
     total_positives = cm[1, 0] + cm[1, 1]  # 実際に1である数
