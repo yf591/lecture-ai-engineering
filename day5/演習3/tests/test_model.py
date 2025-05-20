@@ -11,6 +11,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
+from sklearn.metrics import f1_score, precision_score, recall_score, confusion_matrix
 
 # テスト用データとモデルパスを定義
 DATA_PATH = os.path.join(os.path.dirname(__file__), "../data/Titanic.csv")
@@ -102,6 +103,7 @@ def train_model(sample_data, preprocessor):
     return model, X_test, y_test
 
 
+# モデルの基本機能に関するテスト
 def test_model_exists():
     """モデルファイルが存在するか確認"""
     if not os.path.exists(MODEL_PATH):
@@ -109,6 +111,7 @@ def test_model_exists():
     assert os.path.exists(MODEL_PATH), "モデルファイルが存在しません"
 
 
+# モデルの性能評価に関するテスト
 def test_model_accuracy(train_model):
     """モデルの精度を検証"""
     model, X_test, y_test = train_model
@@ -121,6 +124,39 @@ def test_model_accuracy(train_model):
     assert accuracy >= 0.75, f"モデルの精度が低すぎます: {accuracy}"
 
 
+def test_model_classification_metrics(train_model):
+    """モデルのF1スコア、適合率、再現率を検証"""
+    model, X_test, y_test = train_model
+
+    # 予測と指標計算
+    y_pred = model.predict(X_test)
+    f1 = f1_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred)
+    recall = recall_score(y_test, y_pred)
+
+    # 結果を表示（デバッグ用）
+    print(f"F1スコア: {f1:.4f}")
+    print(f"適合率: {precision:.4f}")
+    print(f"再現率: {recall:.4f}")
+
+    # Titanicデータセットでの一般的な基準値
+    assert f1 >= 0.7, f"モデルのF1スコアが低すぎます: {f1}"
+    assert precision >= 0.7, f"モデルの適合率が低すぎます: {precision}"
+    assert recall >= 0.6, f"モデルの再現率が低すぎます: {recall}"
+
+    # 混同行列の分析（オプション）
+    cm = confusion_matrix(y_test, y_pred)
+    print(f"混同行列:\n{cm}")
+
+    # 偽陰性の割合を確認
+    false_negatives = cm[1, 0]  # 実際は1だが0と予測
+    total_positives = cm[1, 0] + cm[1, 1]  # 実際に1である数
+    if total_positives > 0:
+        fn_rate = false_negatives / total_positives
+        assert fn_rate <= 0.4, f"偽陰性率が高すぎます: {fn_rate:.4f}"
+
+
+# モデルのパフォーマンスに関するテスト
 def test_model_inference_time(train_model):
     """モデルの推論時間を検証"""
     model, X_test, _ = train_model
@@ -136,6 +172,7 @@ def test_model_inference_time(train_model):
     assert inference_time < 1.0, f"推論時間が長すぎます: {inference_time}秒"
 
 
+# モデルの品質と安定性に関するテスト
 def test_model_reproducibility(sample_data, preprocessor):
     """モデルの再現性を検証"""
     # データの分割
